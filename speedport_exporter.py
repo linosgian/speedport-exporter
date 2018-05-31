@@ -1,6 +1,7 @@
 import io
 import sys
 import time
+import os
 
 from prometheus_client import Gauge, start_http_server
 
@@ -44,10 +45,7 @@ def register_prometheus_gauges(m_func):
     connection_type.set_function(lambda: m_func()['connection_type'])
 
 def main():
-    if len(sys.argv) < 2:
-        print('Router hostname required')
-        quit(1)
-    router_hostname = sys.argv[1]
+    router_hostname = os.environ.get('ROUTER_HOSTNAME', '192.168.1.1')
     speedport_metrics = SpeedportMetrics(router_hostname)
     register_prometheus_gauges(speedport_metrics.metrics)
     start_http_server(8000)
