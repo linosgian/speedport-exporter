@@ -1,56 +1,46 @@
-import io
-import sys
-import time
 import os
+from flask import Flask, Response
 
-from prometheus_client import Gauge, start_http_server
+from prometheus_client import Gauge, generate_latest
 
 from speedport_metrics import SpeedportMetrics
 
-def register_prometheus_gauges(m_func):
-    upstream_snr = Gauge('upstream_snr', 'Upstream Signal to Noise ratio (dB)')
-    upstream_snr.set_function(lambda: m_func()['upstream_snr'])
-    
-    upstream_current_rate = Gauge('upstream_current_rate', 'Upstream rate (kbps)')
-    upstream_current_rate.set_function(lambda: m_func()['upstream_current_rate'])
+CONTENT_TYPE_LATEST = str('text/plain; version=0.0.4; charset=utf-8')
 
-    upstream_crc_errors = Gauge('upstream_crc_errors', 'Upstream CRC errors')
-    upstream_crc_errors.set_function(lambda: m_func()['upstream_crc_errors'])
+app = Flask(__name__)
 
-    upstream_fec_errors = Gauge('upstream_fec_errors', 'Upstream FEC errors')
-    upstream_fec_errors.set_function(lambda: m_func()['upstream_fec_errors'])
+upstream_snr = Gauge('upstream_snr', 'Upstream Signal to Noise ratio (dB)')
+downstream_snr = Gauge('downstream_snr', 'Downstream Signal to Noise ratio (dB)')
 
-    upstream_attenuation = Gauge('upstream_attenuation', 'Upstream attenuation (dB)')
-    upstream_attenuation.set_function(lambda: m_func()['upstream_attenuation'])
+dsl_crc_errors = Gauge('upstream_crc_errors', 'DSL CRC errors')
+dsl_fec_errors = Gauge('upstream_fec_errors', 'DSL FEC errors')
 
-    downstream_snr = Gauge('downstream_snr', 'Downstream Signal to Noise ratio (dB)')
-    downstream_snr.set_function(lambda: m_func()['downstream_snr'])
+upstream_attenuation = Gauge('upstream_attenuation', 'Upstream attenuation (dB)')
+downstream_attenuation = Gauge('downstream_attenuation', 'Downstream attenuation (dB)')
 
-    downstream_current_rate = Gauge('downstream_current_rate', 'Downstream rate (kbps)')
-    downstream_current_rate.set_function(lambda: m_func()['downstream_current_rate'])
+upstream_current_rate = Gauge('upstream_current_rate', 'Upstream rate (Mbps)')
+downstream_current_rate = Gauge('downstream_current_rate', 'Downstream rate (Mbps)')
 
-    downstream_attenuation = Gauge('downstream_attenuation', 'Downstream attenuation (dB)')
-    downstream_attenuation.set_function(lambda: m_func()['downstream_attenuation'])
+status = Gauge('status', 'Connection status, 0 for down, 1 for up')
 
-    downstream_crc_errors = Gauge('downstream_crc_errors', 'Downstream CRC errors')
-    downstream_crc_errors.set_function(lambda: m_func()['downstream_crc_errors'])
+router_hostname = os.environ.get('ROUTER_HOSTNAME', '192.168.1.1')
+speedport_metrics = SpeedportMetrics(router_hostname)
 
-    downstream_fec_errors = Gauge('downstream_fec_errors', 'Downstream FEC errors')
-    downstream_fec_errors.set_function(lambda: m_func()['downstream_fec_errors'])
+@app.route('/metrics', methods=['GET'])
+def metrics():
+    cur_metrics = speedport_metrics.metrics()
 
-    status = Gauge('status', 'Connection status, 0 for down, 1 for up')
-    status.set_function(lambda: m_func()['status'])
-
-    connection_type = Gauge('connection_type', 'Connection type, 0 for ADSL, 1 for VDSL')
-    connection_type.set_function(lambda: m_func()['connection_type'])
-
-def main():
-    router_hostname = os.environ.get('ROUTER_HOSTNAME', '192.168.1.1')
-    speedport_metrics = SpeedportMetrics(router_hostname)
-    register_prometheus_gauges(speedport_metrics.metrics)
-    start_http_server(8000)
-    while True:
-        time.sleep(1)
+    upstream_snr.set(cur_metrics['upstream_snr'])
+    upstream_current_rate.set(cur_metrics['upstream_current_rate'])
+    downstream_snr.set(cur_metrics['downstream_snr'])
+    downstream_current_rate.set(cur_metrics['downstream_current_rate'])
+    dsl_crc_errors.set(cur_metrics['dsl_crc_errors'])
+    dsl_fec_errors.set(cur_metrics['dsl_fec_errors'])
+    status.set(cur_metrics['dsl_fec_errors'])
+    upstream_attenuation.set(cur_metrics['upstream_attenuation'])
+    downstream_attenuation.set(cur_metrics['downstream_attenuation'])
+    status.set(cur_metrics['dsl_status'])
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
 if __name__ == '__main__':
-    main()
+    app.run(debug=True, host='0.0.0.0')

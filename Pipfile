@@ -4,16 +4,13 @@ url = "https://pypi.python.org/simple"
 verify_ssl = true
 name = "pypi"
 
-
 [packages]
-pycurl = '*'
+requests = '*'
 prometheus_client = '*'
-
+flask='*'
 
 [dev-packages]
 
-
-
 [requires]
 
-python_version = "3.6"
+python_version = "3.7"
